@@ -13,12 +13,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
-        run: |
-          npm ci
-          npx cap sync ios
+        run: npm ci
+
+      - name: Sync Capacitor
+        run: npx cap sync ios
 
       - name: Install CocoaPods
         run: |
@@ -32,21 +33,18 @@ jobs:
           PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          # Create keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
 
-          # Import certificate
           echo "$P12_BASE64" | base64 --decode > certificate.p12
           security import certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
-          # Install provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
-          PROFILE_UUID=$(security cms -D -i profile.mobileprovision | plutil -extract UUID raw -)
+          PROFILE_UUID=$(/usr/bin/security cms -D -i profile.mobileprovision 2>/dev/null | plutil -extract UUID raw - 2>/dev/null || grep -A1 UUID profile.mobileprovision | tail -1 | tr -d '\t ' | sed 's/<string>//;s/<\/string>//')
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
 
       - name: Build iOS archive
@@ -60,7 +58,8 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=5XSLH8NRQ6 \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="Guru4pets AppStore"
+            PROVISIONING_PROFILE_SPECIFIER="Guru4pets AppStore" \
+            -allowProvisioningUpdates
 
       - name: Export IPA
         run: |
