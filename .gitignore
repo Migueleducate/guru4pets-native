@@ -31,3 +31,4 @@ npm-debug.log*
 *.mobileprovision
 *.p8
 .abacus.donotdelete
+.github/workflows/build-ios.yml
