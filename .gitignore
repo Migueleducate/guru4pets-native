@@ -30,3 +30,4 @@ npm-debug.log*
 *.certSigningRequest
 *.mobileprovision
 *.p8
+.abacus.donotdelete
