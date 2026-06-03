@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# CocoaPods (restored on the CI runner via `pod install`)
+ios/App/Pods/
+ios/App/Podfile.lock
+
+# Xcode user data
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcworkspace/xcuserdata/
+*.xcuserstate
+ios/App/build/
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Signing artifacts — NEVER commit these
+*.p12
+*.cer
+*.pem
+*.key
+*.certSigningRequest
+*.mobileprovision
+*.p8

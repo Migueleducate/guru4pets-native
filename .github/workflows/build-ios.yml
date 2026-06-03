@@ -1,0 +1,204 @@
+name: Build iOS IPA
+
+# ---------------------------------------------------------------------------
+# This workflow builds a signed iOS .ipa for the Guru4pets Capacitor app on a
+# hosted macOS runner. It can be triggered manually (workflow_dispatch) or by
+# pushing a tag like "v1.0.0".
+#
+# REQUIRED GitHub repository secrets
+# (Settings -> Secrets and variables -> Actions -> New repository secret):
+#
+#   P12_BASE64
+#     Base64-encoded Apple Distribution certificate + private key (.p12).
+#     This is the signing identity. Create it on Windows with OpenSSL
+#     (see README.md). On Windows PowerShell, encode with:
+#       [Convert]::ToBase64String([IO.File]::ReadAllBytes("guru4pets_distribution.p12")) | Set-Clipboard
+#
+#   P12_PASSWORD
+#     The export password you set when creating the .p12 file.
+#
+#   PROVISIONING_PROFILE_BASE64
+#     Base64-encoded App Store distribution provisioning profile
+#     (.mobileprovision) downloaded from the Apple Developer portal.
+#     It must target bundle id com.base687f9c98d3ac2e92d4ffa192.app and have
+#     the Push Notifications capability enabled.
+#
+#   KEYCHAIN_PASSWORD
+#     Any random string. Used to create/unlock a temporary keychain on the
+#     runner. It is not an Apple credential — just pick a strong value.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  # 10-character Apple Developer Team ID.
+  APPLE_TEAM_ID: '5XSLH8NRQ6'
+  # The app's bundle identifier (must match the provisioning profile).
+  BUNDLE_ID: 'com.base687f9c98d3ac2e92d4ffa192.app'
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Build web assets and sync Capacitor
+        run: |
+          npm run build
+          npx cap sync ios
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios/App
+        run: pod install --repo-update
+
+      # -------------------------------------------------------------------
+      # Import the Apple Distribution signing identity (.p12) into a fresh,
+      # temporary keychain so `codesign` can use it during the build.
+      # -------------------------------------------------------------------
+      - name: Import code signing certificate
+        env:
+          P12_BASE64: ${{ secrets.P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+
+          # Decode the certificate.
+          echo "$P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          # Create and configure a temporary keychain.
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import the .p12 into the keychain and allow codesign to use it.
+          security import "$CERT_PATH" -P "$P12_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH" \
+            -T /usr/bin/codesign -T /usr/bin/security
+
+          # Make the temporary keychain the default and add it to the search list.
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # Allow codesign to access the key without an interactive prompt.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          rm -f "$CERT_PATH"
+
+      # -------------------------------------------------------------------
+      # Install the App Store provisioning profile where Xcode discovers it.
+      # -------------------------------------------------------------------
+      - name: Install provisioning profile
+        env:
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode \
+            > "$PROFILE_DIR/guru4pets_appstore.mobileprovision"
+
+          # Extract the profile name (used by ExportOptions.plist / xcodebuild).
+          security cms -D -i "$PROFILE_DIR/guru4pets_appstore.mobileprovision" \
+            > "$RUNNER_TEMP/profile.plist"
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$RUNNER_TEMP/profile.plist")
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$RUNNER_TEMP/profile.plist")
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "Installed provisioning profile: $PROFILE_NAME ($PROFILE_UUID)"
+
+      # -------------------------------------------------------------------
+      # Archive the app with manual signing.
+      # -------------------------------------------------------------------
+      - name: Archive app
+        working-directory: ios/App
+        run: |
+          set -euo pipefail
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -destination 'generic/platform=iOS' \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            clean archive
+
+      # -------------------------------------------------------------------
+      # Generate the ExportOptions.plist with the resolved profile name and
+      # export the signed .ipa.
+      # -------------------------------------------------------------------
+      - name: Export signed IPA
+        working-directory: ios/App
+        run: |
+          set -euo pipefail
+          EXPORT_PLIST="$RUNNER_TEMP/ExportOptions.plist"
+
+          # Generate ExportOptions.plist dynamically using the real profile name.
+          cat > "$EXPORT_PLIST" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key>
+              <string>${PROFILE_NAME}</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$EXPORT_PLIST" \
+            -exportPath "$RUNNER_TEMP/export"
+
+          echo "Exported files:"
+          ls -la "$RUNNER_TEMP/export"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Guru4pets-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      # -------------------------------------------------------------------
+      # Always clean up the temporary keychain, even if the build failed.
+      # -------------------------------------------------------------------
+      - name: Clean up keychain
+        if: ${{ always() }}
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  ExportOptions.plist for `xcodebuild -exportArchive`.
+
+  NOTE: The GitHub Actions workflow (.github/workflows/build-ios.yml) generates
+  an ExportOptions.plist dynamically at build time, filling in the provisioning
+  profile NAME automatically from the installed .mobileprovision. This static
+  file is provided for reference and for local/manual exports.
+
+  Before using it manually, replace "Guru4pets AppStore" with the EXACT name of
+  the App Store provisioning profile you created in the Apple Developer portal.
+-->
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store</string>
+
+    <key>teamID</key>
+    <string>5XSLH8NRQ6</string>
+
+    <key>signingStyle</key>
+    <string>manual</string>
+
+    <key>uploadBitcode</key>
+    <false/>
+
+    <key>uploadSymbols</key>
+    <true/>
+
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.base687f9c98d3ac2e92d4ffa192.app</key>
+        <string>Guru4pets AppStore</string>
+    </dict>
+</dict>
+</plist>

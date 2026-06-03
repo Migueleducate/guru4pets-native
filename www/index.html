@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="viewport-fit=cover, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Guru4pets</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      .loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #555;
+        gap: 16px;
+      }
+      .spinner {
+        width: 42px;
+        height: 42px;
+        border: 4px solid #e0e0e0;
+        border-top-color: #6c5ce7;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      This is only a placeholder page. Capacitor requires a non-empty webDir,
+      but the real UI is loaded from server.url (https://app.guru4pets.com).
+      OneSignal is initialized natively from the app entry point (src/main.js)
+      which is bundled here for reference and loaded by the native shell.
+    -->
+    <div class="loader">
+      <div class="spinner"></div>
+      <p>Cargando Guru4pets…</p>
+    </div>
+    <script src="js/main.js"></script>
+  </body>
+</html>
