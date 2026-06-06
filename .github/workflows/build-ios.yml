@@ -53,6 +53,7 @@ jobs:
           xcodebuild archive \
             -workspace App.xcworkspace \
             -scheme App \
+            -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -configuration Release \
             CODE_SIGN_STYLE=Manual \
