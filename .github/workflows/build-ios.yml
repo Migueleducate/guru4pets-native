@@ -66,11 +66,15 @@ jobs:
         run: |
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/App.xcarchive \
-            -exportPath $RUNNER_TEMP/output \
-            -exportOptionsPlist ExportOptions.plist
+            -exportPath ${{ runner.temp }}/output \
+            -exportOptionsPlist $GITHUB_WORKSPACE/ExportOptions.plist
+
+      - name: List exported files
+        run: ls -la ${{ runner.temp }}/output/ || echo "No output directory found"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: Guru4pets-iOS
-          path: $RUNNER_TEMP/output/*.ipa
+          path: ${{ runner.temp }}/output/*.ipa
+          if-no-files-found: warn
