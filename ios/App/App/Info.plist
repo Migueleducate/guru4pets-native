@@ -45,6 +45,15 @@
         </array>
         <key>UIViewControllerBasedStatusBarAppearance</key>
         <true/>
+        <!-- Privacy purpose strings (required by App Store review / fixes ITMS-90683).
+             OneSignal and Capacitor reference these APIs even if the app does not
+             actively use them, so Apple requires a user-facing purpose string. -->
+        <key>NSLocationWhenInUseUsageDescription</key>
+        <string>Guru4Pets utiliza tu ubicación para mostrarte servicios y profesionales de mascotas cerca de ti.</string>
+        <key>NSCameraUsageDescription</key>
+        <string>Guru4Pets necesita acceso a tu cámara para tomar fotos de tu mascota.</string>
+        <key>NSPhotoLibraryUsageDescription</key>
+        <string>Guru4Pets necesita acceso a tus fotos para seleccionar imágenes de tu mascota.</string>
         <!-- Required by OneSignal so the app can receive remote push notifications in the background -->
         <key>UIBackgroundModes</key>
         <array>
