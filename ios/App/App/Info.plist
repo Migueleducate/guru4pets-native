@@ -59,5 +59,17 @@
         <array>
                 <string>remote-notification</string>
         </array>
+        <!-- Allow the app to query/handle OAuth provider URL schemes so that
+             "Continue with Google" / "Continue with Apple" can launch the native
+             provider apps when available and return to the app. -->
+        <key>LSApplicationQueriesSchemes</key>
+        <array>
+                <string>https</string>
+                <string>googlechrome</string>
+                <string>googlechromes</string>
+                <string>google</string>
+                <string>com.google.gppconsent</string>
+                <string>com.googleusercontent.apps</string>
+        </array>
 </dict>
 </plist>
