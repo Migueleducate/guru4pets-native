@@ -28,6 +28,9 @@ const config: CapacitorConfig = {
       'base44.com',
       '*.base44.com',
       'app.base44.com',
+      // Base44 API host (serverUrl for backend calls)
+      'base44.app',
+      '*.base44.app',
       // Google OAuth / sign-in
       'accounts.google.com',
       'accounts.youtube.com',
@@ -41,6 +44,15 @@ const config: CapacitorConfig = {
       'appleid.apple.com',
       'appleid.cdn-apple.com',
       '*.apple.com',
+      // Facebook login
+      'facebook.com',
+      'www.facebook.com',
+      'm.facebook.com',
+      '*.facebook.com',
+      '*.fbcdn.net',
+      // Supabase (image/media storage used by the app)
+      '*.supabase.co',
+      '*.supabase.in',
       // Firebase (in case Base44 routes any auth through Firebase)
       '*.firebaseapp.com',
       '*.firebaseio.com',
