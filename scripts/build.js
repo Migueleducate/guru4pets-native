@@ -10,11 +10,14 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
-const srcFile = path.join(root, 'src', 'main.js');
 const outDir = path.join(root, 'www', 'js');
-const outFile = path.join(outDir, 'main.js');
-
 fs.mkdirSync(outDir, { recursive: true });
-fs.copyFileSync(srcFile, outFile);
 
-console.log('[build] Copied', path.relative(root, srcFile), '->', path.relative(root, outFile));
+// Files to copy from src/ -> www/js/
+var files = ['main.js', 'google-auth.js'];
+files.forEach(function (name) {
+  var srcFile = path.join(root, 'src', name);
+  var outFile = path.join(outDir, name);
+  fs.copyFileSync(srcFile, outFile);
+  console.log('[build] Copied', path.relative(root, srcFile), '->', path.relative(root, outFile));
+});

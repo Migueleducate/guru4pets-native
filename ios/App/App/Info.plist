@@ -74,6 +74,27 @@
                 <string>fb-messenger-share-api</string>
                 <string>fbauth2</string>
         </array>
+        <!-- URL scheme required by native Google Sign-In so Google can redirect
+             back into the app after authentication.
+
+             ┌─ ACTION REQUIRED (see GOOGLE_SETUP.md) ─────────────────────────────┐
+             │ Replace REVERSED_CLIENT_ID below with the "Reversed client ID" of   │
+             │ your iOS OAuth client from Google Cloud Console.                     │
+             │                                                                      │
+             │ If your iOS Client ID is:                                            │
+             │   123456789-abcdefg.apps.googleusercontent.com                       │
+             │ then the Reversed client ID (what goes below) is:                    │
+             │   com.googleusercontent.apps.123456789-abcdefg                       │
+             └──────────────────────────────────────────────────────────────────────┘ -->
+        <key>CFBundleURLTypes</key>
+        <array>
+                <dict>
+                        <key>CFBundleURLSchemes</key>
+                        <array>
+                                <string>com.googleusercontent.apps.YOUR_REVERSED_IOS_CLIENT_ID_HERE</string>
+                        </array>
+                </dict>
+        </array>
         <!-- The app uses only standard/exempt encryption (HTTPS). Declaring this
              avoids the "export compliance" prompt on every TestFlight upload. -->
         <key>ITSAppUsesNonExemptEncryption</key>

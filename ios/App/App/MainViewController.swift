@@ -32,6 +32,54 @@ class MainViewController: CAPBridgeViewController {
         let handler = InAppUIDelegate(forwardingTo: originalDelegate, webView: webView)
         self.inAppUIDelegate = handler
         webView.uiDelegate = handler
+
+        // Inject the native Google Sign-In bridge into the REMOTE page.
+        //
+        // Because server.url points to https://app.guru4pets.com, the local
+        // www/index.html is never rendered, so the <script> tag there does not
+        // run. We instead inject www/js/google-auth.js (bundled into the app at
+        // public/js/google-auth.js) as a WKUserScript so that
+        // `window.nativeGoogleSignIn()` and the Google-button interceptor become
+        // available on the remote Base44 page.
+        injectGoogleAuthBridge(into: webView)
+    }
+
+    /// Reads the bundled google-auth.js and installs it as a document-start
+    /// user script that runs on every navigation inside the WebView.
+    private func injectGoogleAuthBridge(into webView: WKWebView) {
+        // Capacitor copies www/ into the app bundle under "public/".
+        let candidatePaths = [
+            Bundle.main.path(forResource: "google-auth", ofType: "js", inDirectory: "public/js"),
+            Bundle.main.path(forResource: "google-auth", ofType: "js", inDirectory: "public/js", forLocalization: nil)
+        ].compactMap { $0 }
+
+        var jsSource: String? = nil
+        for path in candidatePaths {
+            if let contents = try? String(contentsOfFile: path, encoding: .utf8) {
+                jsSource = contents
+                break
+            }
+        }
+
+        guard let source = jsSource else {
+            print("[Guru4pets] WARNING: google-auth.js not found in bundle; native Google sign-in bridge not injected.")
+            return
+        }
+
+        let userScript = WKUserScript(source: source,
+                                      injectionTime: .atDocumentStart,
+                                      forMainFrameOnly: true)
+        webView.configuration.userContentController.addUserScript(userScript)
+
+        // The initial remote page may already be loading by the time this runs,
+        // so also evaluate it once on the current document.
+        webView.evaluateJavaScript(source) { _, error in
+            if let error = error {
+                print("[Guru4pets] google-auth.js eval error: \(error.localizedDescription)")
+            } else {
+                print("[Guru4pets] Native Google sign-in bridge injected.")
+            }
+        }
     }
 }
 

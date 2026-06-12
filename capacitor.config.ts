@@ -71,6 +71,34 @@ const config: CapacitorConfig = {
     // Google/Apple/Base44.
     limitsNavigationsToAppBoundDomains: false,
   },
+  plugins: {
+    // Native Google Sign-In (resolves Google "Error 403: disallowed_useragent",
+    // which Google returns when OAuth runs inside an embedded WebView).
+    //
+    // Instead of letting Google's OAuth page load inside the WebView (blocked),
+    // we trigger the native Google Sign-In SDK via this plugin and hand the
+    // resulting idToken back to the web app so Supabase/Base44 can complete login.
+    //
+    // ┌─ HOW TO FILL THESE VALUES (see GOOGLE_SETUP.md for full steps) ──────────┐
+    // │ iosClientId   -> the "iOS" OAuth Client ID from Google Cloud Console.    │
+    // │                  Format: 1234567890-abcdef.apps.googleusercontent.com    │
+    // │ clientId      -> the "Web application" OAuth Client ID. This must be the │
+    // │                  SAME web client that Supabase/Base44 already use as the │
+    // │                  Google provider, so the returned idToken is accepted.   │
+    // │ serverClientId-> same Web Client ID (used as the audience for idToken).  │
+    // └──────────────────────────────────────────────────────────────────────────┘
+    GoogleAuth: {
+      // Web application client ID (audience for the returned idToken).
+      // MUST match the Google client configured in Supabase/Base44.
+      clientId: 'YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent.com',
+      serverClientId: 'YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent.com',
+      // iOS native OAuth client ID (from Google Cloud Console -> iOS app).
+      iosClientId: 'YOUR_IOS_CLIENT_ID_HERE.apps.googleusercontent.com',
+      scopes: ['profile', 'email'],
+      // Request an offline serverAuthCode in addition to the idToken.
+      forceCodeForRefreshToken: true,
+    },
+  },
 };
 
 export default config;
