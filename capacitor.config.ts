@@ -90,10 +90,10 @@ const config: CapacitorConfig = {
     GoogleAuth: {
       // Web application client ID (audience for the returned idToken).
       // MUST match the Google client configured in Supabase/Base44.
-      clientId: 'YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent.com',
-      serverClientId: 'YOUR_WEB_CLIENT_ID_HERE.apps.googleusercontent.com',
+      clientId: '315627188018-3bikvivic76s3dos15t420ljar2ageo9.apps.googleusercontent.com',
+      serverClientId: '315627188018-3bikvivic76s3dos15t420ljar2ageo9.apps.googleusercontent.com',
       // iOS native OAuth client ID (from Google Cloud Console -> iOS app).
-      iosClientId: 'YOUR_IOS_CLIENT_ID_HERE.apps.googleusercontent.com',
+      iosClientId: '315627188018-ojo68emh9b5ojll823lsbgrgghafpat5.apps.googleusercontent.com',
       scopes: ['profile', 'email'],
       // Request an offline serverAuthCode in addition to the idToken.
       forceCodeForRefreshToken: true,
