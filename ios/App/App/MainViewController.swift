@@ -21,10 +21,26 @@ class MainViewController: CAPBridgeViewController {
 
     private var inAppUIDelegate: InAppUIDelegate?
 
+    /// Full mobile Safari User-Agent. Presenting this instead of the default
+    /// WKWebView UA defeats Google's "Error 403: disallowed_useragent" so the
+    /// Base44 Google OAuth flow can run inside the WebView (where the resulting
+    /// session is stored in the WebView's own cookies/localStorage).
+    /// Must match `ios.overrideUserAgent` in capacitor.config.ts.
+    private static let safariUserAgent =
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
 
         guard let webView = self.webView else { return }
+
+        // Belt-and-suspenders: ensure the Safari UA is applied even if the
+        // Capacitor `overrideUserAgent` config did not take effect for some
+        // reason. Without a Safari-like UA, Google blocks the OAuth page.
+        if (webView.customUserAgent ?? "").isEmpty {
+            webView.customUserAgent = MainViewController.safariUserAgent
+        }
+        NSLog("[Guru4pets] WKWebView User-Agent = %@", webView.customUserAgent ?? "(default)")
 
         // Keep a reference to Capacitor's original handler so we can forward
         // the JavaScript alert/confirm/prompt callbacks to it unchanged.

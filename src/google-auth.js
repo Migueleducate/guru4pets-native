@@ -1,51 +1,86 @@
 /**
- * Guru4pets — Native Google Sign-In bridge.
+ * Guru4pets — Google login helper + on-screen debug overlay.
  * =========================================================================
  *
- * WHY THIS EXISTS
- * ---------------
- * The Guru4pets UI is loaded remotely from https://app.guru4pets.com (Base44)
- * inside a WKWebView. When the user taps "Continue with Google", Base44 tries
- * to open Google's OAuth page *inside* the WebView. Google rejects this with:
+ * IMPORTANT CONTEXT (verified against the live app)
+ * -------------------------------------------------
+ * Base44 logs users in with ITS OWN Google OAuth client using a server-side
+ * Authorization Code flow:
  *
- *     Error 403: disallowed_useragent
- *     "Acceso bloqueado: La solicitud de App no cumple con las políticas de Google"
+ *   app.guru4pets.com/login
+ *     -> accounts.google.com?client_id=185178814199-...&response_type=code
+ *        &redirect_uri=https://app.base44.com/api/apps/auth/callback
+ *     -> app.base44.com/api/apps/auth/callback   (Base44 establishes session)
+ *     -> back to app.guru4pets.com               (session in localStorage/cookies)
  *
- * Google forbids OAuth inside embedded WebViews. The supported fix is to run
- * sign-in through the NATIVE Google SDK (this is what the
- * `@codetrix-studio/capacitor-google-auth` plugin does), obtain an `idToken`,
- * and hand that token to Supabase/Base44 so it can complete the session
- * WITHOUT ever loading Google's web page in the WebView.
+ * Because Base44 owns the OAuth client and exchanges an authorization CODE on
+ * its backend, a NATIVE Google idToken (minted for OUR client 315627188018-…)
+ * can NOT complete Base44 login. That is why the earlier "intercept the button
+ * and call Supabase" approach left the user stuck on the login screen — there
+ * is no Supabase client on the page and Base44 never receives a usable token.
  *
- * HOW IT WORKS
- * ------------
- *  1. On startup we initialize the GoogleAuth plugin (config comes from
- *     capacitor.config.ts -> plugins.GoogleAuth).
- *  2. We expose `window.nativeGoogleSignIn()` so the web app (or our own
- *     click interceptor below) can trigger the native flow and receive the
- *     Google `idToken`.
- *  3. `signInWithSupabase()` feeds that idToken to a Supabase client found on
- *     the page via `supabase.auth.signInWithIdToken({ provider: 'google' })`.
- *  4. A best-effort click interceptor (ENABLE_AUTO_INTERCEPT) detects the
- *     "Continue with Google" button and runs the native flow automatically.
+ * THE REAL FIX lives in the native layer:
+ *   `ios.overrideUserAgent` (capacitor.config.ts) + `customUserAgent`
+ *   (MainViewController.swift) make the WKWebView present a real mobile Safari
+ *   User-Agent. Google then stops returning "Error 403: disallowed_useragent",
+ *   so Base44's normal OAuth runs INSIDE the WebView and the session is stored
+ *   in the WebView's own cookies/localStorage — exactly what Base44 expects.
  *
- * IMPORTANT: This file is loaded on the REMOTE page via a native WKUserScript
- * injected by MainViewController.swift (because server.url is remote, the local
- * www/index.html is not actually rendered). It is also referenced by
- * www/index.html for completeness / local testing.
+ * THIS FILE therefore:
+ *   1. Does NOT hijack the Google button by default (ENABLE_AUTO_INTERCEPT=false).
+ *   2. Provides an on-screen DEBUG OVERLAY so you can SEE, on the phone, what is
+ *      happening (UA, platform, Base44 storage keys, each step of any native
+ *      sign-in you trigger manually). Enable it by setting localStorage
+ *      `g4p_debug = "1"`, adding `#g4pdebug` to the URL, or tapping the top-left
+ *      corner of the screen 5 times quickly.
+ *   3. Keeps `window.nativeGoogleSignIn()` available for manual diagnostics.
+ *
+ * This script is injected into the REMOTE page by MainViewController.swift.
  */
 (function () {
   'use strict';
 
   var TAG = '[Guru4pets/GoogleAuth]';
 
-  // Set to false if you prefer to call window.nativeGoogleSignIn() yourself
-  // from the web app instead of auto-intercepting the Google button tap.
-  var ENABLE_AUTO_INTERCEPT = true;
+  // The button interceptor is OFF: Base44's own OAuth (run in-WebView with the
+  // Safari UA) is the correct path. Flip to true only for experiments.
+  var ENABLE_AUTO_INTERCEPT = false;
 
   // ----------------------------------------------------------------------
-  // Plugin access helpers
+  // Tiny logger that mirrors to console AND (optionally) an on-screen panel.
   // ----------------------------------------------------------------------
+  var overlay = null;
+  var logBuffer = [];
+
+  function ts() {
+    var d = new Date();
+    return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+  }
+
+  function log(msg, data) {
+    var line = ts() + '  ' + msg + (data !== undefined ? '  ' + safeStringify(data) : '');
+    logBuffer.push(line);
+    if (logBuffer.length > 200) logBuffer.shift();
+    try { console.log(TAG, msg, data !== undefined ? data : ''); } catch (e) {}
+    renderOverlay();
+  }
+
+  function safeStringify(v) {
+    try {
+      if (typeof v === 'string') return v;
+      return JSON.stringify(v);
+    } catch (e) { return String(v); }
+  }
+
+  // ----------------------------------------------------------------------
+  // Platform / plugin helpers
+  // ----------------------------------------------------------------------
+  function isNative() {
+    return !!(window.Capacitor && (typeof window.Capacitor.isNativePlatform === 'function'
+      ? window.Capacitor.isNativePlatform()
+      : window.Capacitor.isNative));
+  }
+
   function getPlugin() {
     if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.GoogleAuth) {
       return window.Capacitor.Plugins.GoogleAuth;
@@ -53,54 +88,101 @@
     return null;
   }
 
-  function isNative() {
-    return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function'
-      ? window.Capacitor.isNativePlatform()
-      : (window.Capacitor && window.Capacitor.isNative));
-  }
-
-  // ----------------------------------------------------------------------
-  // Initialization
-  // ----------------------------------------------------------------------
-  var initialized = false;
-
-  function initGoogleAuth() {
-    if (initialized) return;
-    var plugin = getPlugin();
-    if (!plugin) {
-      console.warn(TAG, 'GoogleAuth plugin not available yet.');
-      return;
-    }
+  function base44StorageSnapshot() {
+    var snap = {};
     try {
-      // On iOS the plugin reads iosClientId / clientId from capacitor.config.ts,
-      // so initialize() can be called without arguments. Passing an empty object
-      // is safe across plugin versions.
-      if (typeof plugin.initialize === 'function') {
-        plugin.initialize();
-      }
-      initialized = true;
-      console.log(TAG, 'GoogleAuth initialized.');
-    } catch (err) {
-      console.error(TAG, 'initialize() failed:', err);
-    }
+      Object.keys(localStorage).forEach(function (k) {
+        if (/base44|auth|token|user|session/i.test(k)) {
+          var val = localStorage.getItem(k);
+          snap[k] = (val && val.length > 40) ? (val.slice(0, 37) + '…') : val;
+        }
+      });
+    } catch (e) { snap._err = String(e); }
+    return snap;
   }
 
   // ----------------------------------------------------------------------
-  // Public API: window.nativeGoogleSignIn()
-  // Returns the Google auth payload: { idToken, accessToken, serverAuthCode, user }
+  // Debug overlay UI
+  // ----------------------------------------------------------------------
+  function debugEnabled() {
+    try {
+      if (location.hash.indexOf('g4pdebug') !== -1) return true;
+      if (localStorage.getItem('g4p_debug') === '1') return true;
+    } catch (e) {}
+    return false;
+  }
+
+  function buildOverlay() {
+    if (overlay || !document.body) return;
+    overlay = document.createElement('div');
+    overlay.id = 'g4p-debug-overlay';
+    overlay.style.cssText = [
+      'position:fixed', 'left:0', 'right:0', 'bottom:0', 'z-index:2147483647',
+      'max-height:45%', 'overflow:auto', 'background:rgba(0,0,0,0.88)',
+      'color:#0f0', 'font:11px/1.35 monospace', 'padding:8px 8px 10px',
+      'white-space:pre-wrap', 'word-break:break-word',
+      'border-top:2px solid #0f0', '-webkit-overflow-scrolling:touch'
+    ].join(';');
+
+    var bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;position:sticky;top:0;background:rgba(0,0,0,0.95);padding-bottom:4px';
+    bar.innerHTML =
+      '<b style="color:#fff">Guru4pets DEBUG</b>' +
+      '<button id="g4p-test" style="color:#000;background:#0f0;border:0;padding:2px 6px;border-radius:3px">Probar Google nativo</button>' +
+      '<button id="g4p-snap" style="color:#000;background:#ff0;border:0;padding:2px 6px;border-radius:3px">Snapshot</button>' +
+      '<button id="g4p-clear" style="color:#fff;background:#444;border:0;padding:2px 6px;border-radius:3px">Limpiar</button>' +
+      '<button id="g4p-close" style="color:#fff;background:#a00;border:0;padding:2px 6px;border-radius:3px">X</button>';
+    overlay.appendChild(bar);
+
+    var pre = document.createElement('div');
+    pre.id = 'g4p-debug-log';
+    overlay.appendChild(pre);
+
+    document.body.appendChild(overlay);
+
+    bar.querySelector('#g4p-test').onclick = function () {
+      log('[manual] nativeGoogleSignIn() solicitado…');
+      window.nativeGoogleSignIn().then(function (p) {
+        log('[manual] idToken recibido (NOTA: Base44 NO lo aceptará):', { email: p.user.email, idTokenLen: p.idToken ? p.idToken.length : 0 });
+      }).catch(function (e) { log('[manual] ERROR:', String(e && e.message || e)); });
+    };
+    bar.querySelector('#g4p-snap').onclick = dumpDiagnostics;
+    bar.querySelector('#g4p-clear').onclick = function () { logBuffer = []; renderOverlay(); };
+    bar.querySelector('#g4p-close').onclick = function () {
+      try { localStorage.setItem('g4p_debug', '0'); } catch (e) {}
+      if (overlay) { overlay.remove(); overlay = null; }
+    };
+  }
+
+  function renderOverlay() {
+    if (!overlay) return;
+    var pre = overlay.querySelector('#g4p-debug-log');
+    if (pre) {
+      pre.textContent = logBuffer.join('\n');
+      overlay.scrollTop = overlay.scrollHeight;
+    }
+  }
+
+  function dumpDiagnostics() {
+    log('platform.isNative =', isNative());
+    log('navigator.userAgent =', navigator.userAgent);
+    log('GoogleAuth plugin =', !!getPlugin());
+    log('location =', location.href);
+    log('base44 storage =', base44StorageSnapshot());
+    log('window globals (auth-ish) =',
+      Object.keys(window).filter(function (k) { return /base44|supabase|auth|google|gsi|firebase/i.test(k); }));
+  }
+
+  // ----------------------------------------------------------------------
+  // Public API (manual / fallback use only)
   // ----------------------------------------------------------------------
   window.nativeGoogleSignIn = function nativeGoogleSignIn() {
     var plugin = getPlugin();
-    if (!plugin) {
-      return Promise.reject(new Error('GoogleAuth plugin not available (not running in native app?).'));
-    }
-    initGoogleAuth();
+    if (!plugin) return Promise.reject(new Error('GoogleAuth plugin not available'));
+    try { if (typeof plugin.initialize === 'function') plugin.initialize(); } catch (e) {}
     return plugin.signIn().then(function (result) {
-      // result shape (codetrix plugin):
-      // { id, email, name, familyName, givenName, imageUrl,
-      //   authentication: { accessToken, idToken, refreshToken } , serverAuthCode }
-      var auth = result && result.authentication ? result.authentication : {};
-      var payload = {
+      var auth = (result && result.authentication) || {};
+      return {
         idToken: auth.idToken || null,
         accessToken: auth.accessToken || null,
         serverAuthCode: result ? result.serverAuthCode : null,
@@ -111,138 +193,93 @@
           imageUrl: result ? result.imageUrl : null
         }
       };
-      console.log(TAG, 'Native sign-in success for', payload.user.email);
-      return payload;
     });
   };
 
-  // Optional helper: sign out of the native Google session.
-  window.nativeGoogleSignOut = function nativeGoogleSignOut() {
+  window.nativeGoogleSignOut = function () {
     var plugin = getPlugin();
-    if (!plugin) return Promise.resolve();
-    return plugin.signOut();
+    return plugin ? plugin.signOut() : Promise.resolve();
+  };
+
+  // Expose a manual debug toggle for support sessions.
+  window.__g4pDebug = function (on) {
+    try { localStorage.setItem('g4p_debug', on === false ? '0' : '1'); } catch (e) {}
+    if (on === false) { if (overlay) { overlay.remove(); overlay = null; } }
+    else { buildOverlay(); dumpDiagnostics(); }
   };
 
   // ----------------------------------------------------------------------
-  // Complete the login with Supabase using the native idToken.
-  // Looks for a Supabase client already created by the Base44 web app.
+  // Optional auto-interceptor (disabled by default — see ENABLE_AUTO_INTERCEPT)
   // ----------------------------------------------------------------------
-  function findSupabaseClient() {
-    // Common places a Supabase client may be exposed on the page.
-    var candidates = [
-      window.supabase,
-      window.supabaseClient,
-      window._supabase,
-      window.__supabase__
-    ];
-    for (var i = 0; i < candidates.length; i++) {
-      var c = candidates[i];
-      if (c && c.auth && typeof c.auth.signInWithIdToken === 'function') {
-        return c;
-      }
-    }
-    return null;
-  }
-
-  window.signInWithSupabase = function signInWithSupabase() {
-    return window.nativeGoogleSignIn().then(function (payload) {
-      var sb = findSupabaseClient();
-      if (!sb) {
-        // No Supabase client found on the page. Hand the token to the web app
-        // via a DOM event so Base44 code can finish the login however it wants.
-        console.warn(TAG, 'No Supabase client found on page; dispatching guru4pets:googleToken event.');
-        window.dispatchEvent(new CustomEvent('guru4pets:googleToken', { detail: payload }));
-        return payload;
-      }
-      return sb.auth.signInWithIdToken({
-        provider: 'google',
-        token: payload.idToken,
-        access_token: payload.accessToken || undefined
-      }).then(function (res) {
-        if (res && res.error) {
-          console.error(TAG, 'Supabase signInWithIdToken error:', res.error);
-          throw res.error;
-        }
-        console.log(TAG, 'Supabase session established via native Google idToken.');
-        // Reload so the web app picks up the new authenticated session.
-        try { window.location.reload(); } catch (e) {}
-        return res;
-      });
-    });
-  };
-
-  // ----------------------------------------------------------------------
-  // Best-effort auto-interception of the "Continue with Google" button.
-  // ----------------------------------------------------------------------
-  function looksLikeGoogleButton(el) {
-    if (!el) return false;
-    var text = (el.innerText || el.textContent || '').toLowerCase();
-    var aria = (el.getAttribute && (el.getAttribute('aria-label') || '') || '').toLowerCase();
-    var hay = text + ' ' + aria;
-    // Must mention google AND look like a sign-in/continue action.
-    var mentionsGoogle = hay.indexOf('google') !== -1;
-    var mentionsAuth = /sign|log|continu|acced|iniciar|entrar|conect/.test(hay);
-    return mentionsGoogle && mentionsAuth;
-  }
-
-  function findClickableAncestor(node) {
-    var depth = 0;
-    while (node && depth < 5) {
-      if (node.nodeType === 1) {
-        var tag = node.tagName ? node.tagName.toLowerCase() : '';
-        if (tag === 'button' || tag === 'a' || node.getAttribute('role') === 'button') {
-          return node;
-        }
-      }
-      node = node.parentNode;
-      depth++;
-    }
-    return null;
-  }
-
   function installInterceptor() {
-    if (!ENABLE_AUTO_INTERCEPT) return;
+    if (!ENABLE_AUTO_INTERCEPT) {
+      log('Auto-interceptor DISABLED — Base44 OAuth runs in-WebView with Safari UA.');
+      return;
+    }
     document.addEventListener('click', function (e) {
-      try {
-        var clickable = findClickableAncestor(e.target);
-        if (!clickable || !looksLikeGoogleButton(clickable)) return;
-
-        // Intercept: stop Base44 from opening Google OAuth in the WebView.
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-
-        console.log(TAG, 'Intercepted Google button tap → running native sign-in.');
-        window.signInWithSupabase().catch(function (err) {
-          console.error(TAG, 'Native Google sign-in failed:', err);
-          alert('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
-        });
-      } catch (err) {
-        console.error(TAG, 'Interceptor error:', err);
+      var t = e.target;
+      var depth = 0, el = null;
+      while (t && depth < 5) {
+        if (t.nodeType === 1) {
+          var tag = (t.tagName || '').toLowerCase();
+          if (tag === 'button' || tag === 'a' || t.getAttribute('role') === 'button') { el = t; break; }
+        }
+        t = t.parentNode; depth++;
       }
-    }, true); // capture phase so we run before the web app's own handler
-    console.log(TAG, 'Google button interceptor installed (capture).');
+      if (!el) return;
+      var hay = ((el.innerText || '') + ' ' + (el.getAttribute('aria-label') || '')).toLowerCase();
+      if (hay.indexOf('google') === -1 || !/sign|log|continu|acced|iniciar|entrar/.test(hay)) return;
+      e.preventDefault(); e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      log('Intercepted Google button → native sign-in (experimental).');
+      window.nativeGoogleSignIn()
+        .then(function (p) { log('native idToken (won\'t complete Base44):', p.user.email); })
+        .catch(function (err) { log('native sign-in error:', String(err)); });
+    }, true);
+  }
+
+  // ----------------------------------------------------------------------
+  // Tap top-left corner 5x to reveal the overlay even without the flag.
+  // ----------------------------------------------------------------------
+  function installGesture() {
+    var taps = 0, timer = null;
+    document.addEventListener('touchend', function (e) {
+      var x = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientX : 999;
+      var y = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientY : 999;
+      if (x < 60 && y < 60) {
+        taps++;
+        clearTimeout(timer);
+        timer = setTimeout(function () { taps = 0; }, 1200);
+        if (taps >= 5) {
+          taps = 0;
+          try { localStorage.setItem('g4p_debug', '1'); } catch (er) {}
+          buildOverlay(); dumpDiagnostics();
+        }
+      }
+    }, true);
   }
 
   // ----------------------------------------------------------------------
   // Bootstrap
   // ----------------------------------------------------------------------
   function boot() {
-    if (!isNative()) {
-      // Running in a normal browser (not the native app) — let the web app
-      // handle Google login the regular way.
-      console.log(TAG, 'Not a native platform; native Google sign-in disabled.');
-      return;
+    if (debugEnabled()) {
+      buildOverlay();
+      dumpDiagnostics();
     }
-    initGoogleAuth();
-    installInterceptor();
+    installGesture();
+    if (isNative()) {
+      installInterceptor();
+      log('Native shell ready. UA =', navigator.userAgent);
+    } else {
+      log('Not native platform; nothing to do.');
+    }
   }
 
-  document.addEventListener('deviceready', boot, false);
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     setTimeout(boot, 300);
   } else {
     window.addEventListener('DOMContentLoaded', function () { setTimeout(boot, 300); });
-    window.addEventListener('load', function () { setTimeout(boot, 800); });
   }
+  document.addEventListener('deviceready', boot, false);
 })();

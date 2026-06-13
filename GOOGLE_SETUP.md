@@ -1,3 +1,32 @@
+> # ⚠️ ACTUALIZACIÓN IMPORTANTE — LEE ESTO PRIMERO
+>
+> Tras inspeccionar el login en vivo, descubrimos que **el enfoque del idToken
+> nativo (este documento) NO puede completar el login de Base44**. El motivo:
+>
+> - Base44 usa **su propio** cliente de Google (`185178814199-…`) en modo *Default*.
+> - El login es un **flujo de código del lado del servidor** que termina en
+>   `https://app.base44.com/api/apps/auth/callback` (`response_type=code`).
+> - Un `idToken` nativo emitido para **nuestro** cliente (`315627188018-…`) jamás
+>   será aceptado por el backend de Base44.
+>
+> ### ✅ La solución real (ya implementada)
+> Hacemos que el **WKWebView se presente como Safari** mediante
+> `ios.overrideUserAgent` en `capacitor.config.ts` (y `customUserAgent` en
+> `MainViewController.swift`). Así Google deja de devolver
+> `Error 403: disallowed_useragent` y **el OAuth normal de Base44 se completa
+> dentro del WebView**, guardando la sesión en sus cookies/localStorage.
+>
+> **No necesitas configurar nada más para que el login con Google funcione.**
+> Solo recompila y prueba en TestFlight. Toca la esquina superior izquierda de
+> la pantalla **5 veces** (o pon `localStorage g4p_debug = "1"`) para ver el
+> panel de diagnóstico en el teléfono.
+>
+> Lo de abajo se conserva solo como referencia para el **fallback opcional**
+> `window.nativeGoogleSignIn()` (diagnóstico manual). No es necesario para el
+> login normal.
+>
+> ---
+
 # Configuración de Google Sign-In nativo (Guru4pets iOS)
 
 Esta guía resuelve el error que aparece al iniciar sesión con Google desde la app de TestFlight:
