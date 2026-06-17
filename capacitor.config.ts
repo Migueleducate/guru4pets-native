@@ -102,38 +102,12 @@ const config: CapacitorConfig = {
     overrideUserAgent:
       'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
   },
-  plugins: {
-    // ⚠️ OPTIONAL / FALLBACK ONLY — NOT used for the main login anymore.
-    //
-    // We discovered Base44 uses its OWN Google OAuth client via a server-side
-    // CODE flow, so a native idToken minted for our own client can't complete
-    // Base44 login. The primary fix is now `ios.overrideUserAgent` above, which
-    // lets Base44's normal OAuth succeed inside the WebView.
-    //
-    // This config is kept only so `window.nativeGoogleSignIn()` remains available
-    // for manual testing/diagnostics (the auto-interceptor in google-auth.js is
-    // disabled by default). It is harmless if unused.
-    //
-    // ┌─ HOW TO FILL THESE VALUES (see GOOGLE_SETUP.md for full steps) ──────────┐
-    // │ iosClientId   -> the "iOS" OAuth Client ID from Google Cloud Console.    │
-    // │                  Format: 1234567890-abcdef.apps.googleusercontent.com    │
-    // │ clientId      -> the "Web application" OAuth Client ID. This must be the │
-    // │                  SAME web client that Supabase/Base44 already use as the │
-    // │                  Google provider, so the returned idToken is accepted.   │
-    // │ serverClientId-> same Web Client ID (used as the audience for idToken).  │
-    // └──────────────────────────────────────────────────────────────────────────┘
-    GoogleAuth: {
-      // Web application client ID (audience for the returned idToken).
-      // MUST match the Google client configured in Supabase/Base44.
-      clientId: '315627188018-3bikvivic76s3dos15t420ljar2ageo9.apps.googleusercontent.com',
-      serverClientId: '315627188018-3bikvivic76s3dos15t420ljar2ageo9.apps.googleusercontent.com',
-      // iOS native OAuth client ID (from Google Cloud Console -> iOS app).
-      iosClientId: '315627188018-ojo68emh9b5ojll823lsbgrgghafpat5.apps.googleusercontent.com',
-      scopes: ['profile', 'email'],
-      // Request an offline serverAuthCode in addition to the idToken.
-      forceCodeForRefreshToken: true,
-    },
-  },
+  // NOTE: The native @codetrix-studio/capacitor-google-auth plugin was REMOVED.
+  // It pulled in the GoogleSignIn / GTMAppAuth / GTMSessionFetcher SDKs, which
+  // Apple rejected for missing Privacy Manifests (ITMS-91061). The plugin was
+  // never actually used for login — Google sign-in works through Base44's own
+  // OAuth flow inside the WebView via the `ios.overrideUserAgent` fix above.
+  // Removing it eliminates the flagged SDKs entirely.
 };
 
 export default config;
