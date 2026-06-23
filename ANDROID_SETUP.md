@@ -74,12 +74,23 @@ GitHub → pestaña **Actions** → **Build Android App** → **Run workflow**. 
 
 Android entrega push a través de **Firebase Cloud Messaging (FCM)**. OneSignal necesita las credenciales de tu proyecto Firebase.
 
+### ✅ Firebase SDK ya integrado
+
+El proyecto **ya incluye** las dependencias de Firebase en `android/app/build.gradle`:
+- **Firebase BoM 34.15.0** (gestiona versiones de Firebase automáticamente)
+- **firebase-messaging** (FCM para push)
+- **firebase-analytics** (opcional)
+- **minSdkVersion: 23** (requerido por Firebase Messaging)
+
+### 📋 Pasos de configuración
+
 1. Crea un proyecto en [Firebase Console](https://console.firebase.google.com/).
 2. Agrega una app **Android** con el package `com.base687f9c98d3ac2e92d4ffa192.app`.
 3. Descarga el archivo **`google-services.json`** y colócalo en `android/app/google-services.json`.
-   - Está en `.gitignore`. Para el build en CI, súbelo como secret adicional o inclúyelo manualmente según prefieras.
-   - El `build.gradle` ya aplica el plugin de Google Services automáticamente si el archivo existe.
-4. En Firebase → **Project settings → Cloud Messaging**, habilita la **Firebase Cloud Messaging API (V1)** y genera/obtén la **Service Account JSON** (Cloud Messaging API V1) o la Server Key (legacy).
+   - Está en `.gitignore` (no se sube al repo).
+   - El `build.gradle` aplica automáticamente el plugin de Google Services si este archivo existe.
+   - **Sin este archivo, la app compila pero las notificaciones push NO funcionarán.**
+4. En Firebase → **Project settings → Cloud Messaging**, habilita la **Firebase Cloud Messaging API (V1)** y descarga el **Service Account JSON**.
 5. En el [Dashboard de OneSignal](https://dashboard.onesignal.com/) → tu app → **Settings → Push & In-App → Google Android (FCM)**:
    - Sube el **Service Account JSON** (método V1, recomendado).
 6. Verifica que el OneSignal App ID en la app coincida: `57dcae77-28dc-457d-b3f5-75ed08d73cb5`.

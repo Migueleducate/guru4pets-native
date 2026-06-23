@@ -83,6 +83,16 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+
+    // Firebase BoM (Bill of Materials) - manages Firebase SDK versions
+    // When using the BoM, don't specify versions in individual Firebase dependencies
+    implementation platform('com.google.firebase:firebase-bom:34.15.0')
+    
+    // Firebase Cloud Messaging (FCM) for push notifications via OneSignal
+    implementation 'com.google.firebase:firebase-messaging'
+    
+    // Firebase Analytics (optional, but recommended by Firebase setup)
+    implementation 'com.google.firebase:firebase-analytics'
 }
 
 apply from: 'capacitor.build.gradle'
