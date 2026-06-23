@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Guru4pets</string>
+    <string name="title_activity_main">Guru4pets</string>
+    <string name="package_name">com.base687f9c98d3ac2e92d4ffa192.app</string>
+    <string name="custom_url_scheme">com.base687f9c98d3ac2e92d4ffa192.app</string>
+</resources>

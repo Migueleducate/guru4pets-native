@@ -102,6 +102,19 @@ const config: CapacitorConfig = {
     overrideUserAgent:
       'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
   },
+  // ===========================================================================
+  // ANDROID — same Google "disallowed_useragent" precaution as iOS.
+  // ---------------------------------------------------------------------------
+  // Android's System WebView reports a User-Agent that contains the "; wv"
+  // token, which Google's OAuth servers use to detect (and sometimes block)
+  // embedded WebViews. Overriding it with a genuine Chrome-on-Android UA (no
+  // "wv" marker) lets Base44's normal Google OAuth flow complete inside the
+  // WebView, exactly like the Safari override does on iOS.
+  // ===========================================================================
+  android: {
+    overrideUserAgent:
+      'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+  },
   // NOTE: The native @codetrix-studio/capacitor-google-auth plugin was REMOVED.
   // It pulled in the GoogleSignIn / GTMAppAuth / GTMSessionFetcher SDKs, which
   // Apple rejected for missing Privacy Manifests (ITMS-91061). The plugin was

@@ -32,3 +32,21 @@ npm-debug.log*
 *.p8
 .abacus.donotdelete
 .github/workflows/build-ios.yml
+
+# ===== Android =====
+# Build outputs
+android/app/build/
+android/build/
+android/.gradle/
+android/capacitor-cordova-android-plugins/build/
+*.apk
+*.aab
+# Signing secrets — NEVER commit these
+android/key.properties
+*.jks
+*.keystore
+keystore_base64.txt
+# Firebase config (contains project keys; add via CI or locally)
+android/app/google-services.json
+# Local SDK location
+android/local.properties
