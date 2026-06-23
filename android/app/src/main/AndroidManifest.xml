@@ -40,4 +40,51 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Required for OneSignal push notifications on Android 13+ (API 33+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Camera: required so the WebView (getUserMedia / file input "capture")
+         can take photos/videos of the pet. Capacitor's BridgeWebChromeClient only
+         requests this at runtime if it is declared here. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Location: required so navigator.geolocation works in the WebView to show
+         nearby pet services/professionals. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Gallery / files access for <input type="file"> selecting images & videos.
+         Android 13+ (API 33+) uses the granular media permissions; older devices
+         use READ_EXTERNAL_STORAGE (capped at API 32). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- Camera hardware is optional (don't block install on camera-less devices). -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
+    <!-- Android 11+ (API 30+) package visibility: allows the app to launch the
+         phone dialer (tel:), WhatsApp, e-mail and the browser from web links. -->
+    <queries>
+        <!-- Open phone dialer for tel: links -->
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <!-- Open default browser / https links -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <!-- Send e-mail -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+        <!-- WhatsApp (open chats / share) -->
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
 </manifest>

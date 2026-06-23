@@ -54,6 +54,10 @@
         <string>Guru4Pets necesita acceso a tu cámara para tomar fotos de tu mascota.</string>
         <key>NSPhotoLibraryUsageDescription</key>
         <string>Guru4Pets necesita acceso a tus fotos para seleccionar imágenes de tu mascota.</string>
+        <key>NSPhotoLibraryAddUsageDescription</key>
+        <string>Guru4Pets necesita permiso para guardar imágenes de tu mascota en tu galería.</string>
+        <key>NSMicrophoneUsageDescription</key>
+        <string>Guru4Pets necesita acceso al micrófono para grabar videos de tu mascota.</string>
         <!-- Required by OneSignal so the app can receive remote push notifications in the background -->
         <key>UIBackgroundModes</key>
         <array>
@@ -73,6 +77,11 @@
                 <string>fbapi</string>
                 <string>fb-messenger-share-api</string>
                 <string>fbauth2</string>
+                <!-- Allow opening WhatsApp (chats/share) and the phone dialer from web links -->
+                <string>whatsapp</string>
+                <string>tel</string>
+                <string>telprompt</string>
+                <string>mailto</string>
         </array>
         <!-- The app uses only standard/exempt encryption (HTTPS). Declaring this
              avoids the "export compliance" prompt on every TestFlight upload. -->
