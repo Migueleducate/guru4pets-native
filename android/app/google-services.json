@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "978186945905",
+    "project_id": "guru4pets-android",
+    "storage_bucket": "guru4pets-android.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:978186945905:android:456fda6da12edbc2a762d0",
+        "android_client_info": {
+          "package_name": "com.base687f9c98d3ac2e92d4ffa192.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDiYj2_n3jiOeKG0mvrQkJDAwCEB08tPIY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
